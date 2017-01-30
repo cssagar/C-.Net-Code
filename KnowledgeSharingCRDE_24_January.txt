@@ -1,0 +1,249 @@
+Knowledge Sharing - CRDE 
+-------------------------------
+
+IMPORTANT TABLES
+============================================================
+
+ModSourceData 
+----------------------------------------------
+DW Tables (DWCase, DWBorrower, etc) 
+iSeriesCHMSTRAA - 
+iSeriesHHMSTRAA -HE
+vwALSLoanData - HE 
+
+ModStaging - Delete and populate
+----------------------------------------------
+vwDWCaseLatest - DownloandDWLatest
+iSeriesMDLVNORDER
+iSeriesMDLPOOLTYP
+iSeriesMDLORDATBB
+
+Mod
+----------------------------------------------
+DWLoanData - BuildDWLoanData
+WorkoutCandidateLoanList - BuildWorkoutCandidateLoanList - Waterfall Decision
+*Snapshot - SnapshotStagingData
+DeclineSourceData - Decline
+MiscPermUploadData - Perm
+DataOverride - during Appeal, or manual override, or during Perm
+Evaluation - StageEvaluaitons
+QCCheckLoanAction
+LoanAction
+RunOfRecord
+NPVEvaluation - All other
+LMAEvaluation - FHA Loan 
+HEEvaluation - Home Equity
+RuleFailure
+RuleDtl
+LMADecisionData
+
+Waterfall
+Program
+WaterFallProgram
+
+
+SPs:
+DownloadvwDWCaseLatest
+GetFreddiePMMSRate
+UpdateLoanActionsFromExternal
+DeactivateExpiredQCCheckLoanActions
+BuildDWLoanData
+PopulateAppealData
+BuildWorkoutCandidateLoanList
+
+Questions on 1/11:
+------------------------------
+Why more than one case exits?
+
+One loan can have many cases
+
+	Initial Look - Fresh case borrower applied for mod
+	CIC - Change in Circumstance
+	Appeals - Borrower appealing against a decline or against the program offered to him
+
+	
+What is the Importance of iSeriesMDL* tables in ModStaging?
+
+iSeriesMDLVNORDER
+iSeriesMDLPOOLTYP
+iSeriesMDLORDATBB
+
+These tables are refered in UpdateLoanActionsFromExternal which responsible for updaing the mailing status in LoanAction table and to create RunOfRecord entries.
+
+LoanAction
+---------------
+TrialApprovedByQC - CRDE can update based on Evaluation and QC results to TABQC / TDABQC / PABQC / PDABQC  
+TrialMailedToBorrower - AVU send the mail and updated status in iSeries, then CRDE everyday reads from iSeries and updated to TMTB / TDMTB  / PMTB / PDMTB
+
+GSE's
+--------
+Government Sponsered Entities
+Fannie Mae - FNMA
+Freddie Mac - FHLMC
+
+ROR
+-----------
+Trial - Active - Y/N
+Perm
+TrialDecline
+PermDecline
+
+Cancel LoanAction:
+------------------------
+for CIC - 
+	Intial Look - Currently evaluting for Trial and the status us TrialDeclineApprovedByQC
+	TrialDeclineApprovedByQC will be canceled : LAS will be updated as Canceled
+	
+	
+1/20/2017 :
+--------------
+					
+select top 50 Evaluationid EvalId, modtype, modsubtype, evaluationmode, evaluationsubmode,recommendedaction,DWCaseId, LoanActionId,
+* from EValuation --Where RecommendedAction in ('BeginProgramAction','UpdateActiveAction')--MortgageType != 'HomeEquity' --and LoanActionid is not null
+Order by EvalId Desc
+
+189553256
+
+
+ModType - HAMP and NonHAMP
+HAMP - Home Affordable Modification Program - CRDE (LMA) 
+NonHAMP - Non Home Affordable Modification Program - CoreLogic
+COMBO - HAMP & NonHAMP
+
+Select ModType,* from LoanAction (nolock) Where LoanActionid = 106167351
+
+Select Distinct ModSubType From EValuation
+
+Select Distinct EvaluationSubMode From EValuation
+
+Select Distinct RecommendedAction From EValuation
+
+Select * from DeclineSourceData Where Loannum = 68518000676099
+
+ModSubType
+-----------------------
+
+HFI - Held for  Investment
+HFIFHAPRM
+HFINONGOVPRM
+HFIVAPRM
+Military_HFI 
+
+SFO - Service for Others
+
+FNMA - Fannie Mae 
+FNMACEMOD
+FNMAMCMMOD
+FNMAMod24
+FNMASMOD
+
+FHLMC - Freddie Mac
+FHLMCSMOD
+AltMod3 
+
+Regular
+
+DOJ - Government
+FHA - Federal Housing Administration
+USDA - 
+VA _ Veteran Affairs
+
+Evaluation SubMode 
+----------------------------
+Appeal
+DPM - Delayed Perm Mod ( Trial length is 3 months) - 
+EDExternalDecision
+EDInputOverride
+EDOutputOverride
+PostPerm - Decline (After Trial - Perm Decline)
+PostTrial - Decline (After Trial - Perm Decline)
+PreTrial - Decline (Before Trial - Trail Decline)
+Regular
+
+
+RecommendedAction
+---------------------------------
+Evaluate - Intermediate status  - During batch evaluation ... once the records populated in Evaluation table and during JP call
+PendingQCCheck - Intermediate status  -During batch evaluation .. Once JP is done and QC in progress .... You see in LLE (PSDIT) while testing
+PendingReview - If there is any Pending Review Rule Failure in CRDE Rule or QC Rules.
+Reevaluate - When one of the program in waterfall has only Soft Exclusions.
+ReevaluateInNextJob - Similar to Reevaluate but this is an outcome of PendingReview decision
+ResolveError - Some error from JP
+BeginProgramAction - In Trial
+UpdateActiveAction - In Perm
+
+Not Valid now 
+---------------
+EligibleForIM
+FHANonHAMPTakesPriority
+IMPendingReview
+PendingEvarsApproval
+PendingExternalApproval
+
+1/24/2017
+----------------------------
+
+Evaluation table foreign key columns
+
+QCCheckId - QCCheckLoanAction - If the loan is has RecommendedAction as PendingReview, BeginProgramAction, UpdateActiveAction then it will have QCCheckId
+		QCCheckLoanAction.LoanActionStatus 
+		PermSentToQC  (TrialSentToQC)
+		PermPendingReview (TrialPendingReview) - Evaluation.RecommendedAction will be updated as PendingReview
+		If Accept (QCCheckLoanAction.PendingReviewDecision)
+			PermApprovedByQC (TrialApprovedByQC) - Evaluation.RecommendedAction will be updated as UpdateActiveAction (BeginProgramAction)
+																		   - LoanAction.LoanActionStatus will be created with LAS PermApprovedByQC (TrialApprovedByQC)
+		If Reject (QCCheckLoanAction.PendingReviewDecision) 	And Reevaluate (RejectReEvaluate)
+			PermPendingReview (TrialPendingReview) - Evaluation.RecommendedAction will be updated as ReevaluateInNextJob
+			
+LoanActionid - LoanAction
+	LoanActionStatus - (Trial/Perm)ApprovedByQC , (TrialDeclin/PermDecline)ApprovedByQC
+								  - (Trial/Perm)MailedToBorrower, (TrialDeclin/PermDecline)MailedToBorrower - the letter reached Borrower 
+								  - (Trial/Perm)ReceivedFromBorrower, (TrialDeclin/PermDecline)ReceivedFromBorrower - The borrower accepted the decision and sent acceptance letter and it reached us.
+								  -Canceled
+								  -TerminatedMod
+								  
+Evaluationid is referred in below tables
+----------------------------------------------
+
+HEEvaluation -- When MortgageType is HomeEquity  -- CLMS - DLL call
+	ProgramId
+	ModelVersion - Which version of DLL is called
+	Model* - Input fields, filled before calling the DLL by JRules (PreCalculation rules)
+	Mod* - Output fields, filled after  DLL call  (Valued returned by DLL or caclulate after DLL call)
+	FailureCd - Output fields from DLL
+	FailureReason - Output fields from DLL
+
+NPVEvaluation -- When MortgageType is not HomeEquity and  ModSubType is not FHA -- CLMS  - DLL call
+	ProgramId
+	ModelVersion - Which version of DLL is called - When it is NULL that means the loan is failed in input validation ( we will not invoke DLL)
+	Model* - Input fields, filled before calling the DLL by JRules (PreCalculation rules)
+	Mod* - Output fields, filled after  DLL call  (Valued returned by DLL or caclulate after DLL call)
+	FailureCd - Output fields from DLL
+	FailureReason - Output fields from DLL
+	
+LMAEvaluation -- When MortgageType is not HomeEquity and  ModSubType is FHA -- In House
+
+	ProgramId
+	ModelVersion - Which version of DLL is called - When it is NULL that means the loan is failed in input validation ( we will not invoke DLL)
+	Model* - Input fields, filled before calling the DLL by JRules (PreCalculation rules)
+	Mod* - Output fields, filled after  DLL call  (Valued returned by DLL or caclulate after DLL call)
+	FailureCd - Output fields from DLL
+	FailureReason - Output fields from DLL
+	
+SMDUEvaluation -- When ModSubType is FNMA -- SMDU Web Service call
+
+
+Learn about Home Equity
+
+
+					
+
+
+
+
+
+
+
+
+											
+											
