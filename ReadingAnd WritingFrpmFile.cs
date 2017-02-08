@@ -35,19 +35,3 @@ namespace IOExample_29_Jan
     }
 }
 
-
-1/31/2017
---------------------
-SMDU - SMDU is a webservice exposed to CRDE to pass the request  XML for evaluation. SMDU send the result as result XML.
-Investor - FNMA (Fannie Mae)
-
-StageEvaluaitons - SP - Loads the loans which are eligible for tonight's batch evaluation. 
-GetBatchEvaluationByEvaluationId - SP - JP calls the SP to pick loans one by one to process. (In production multi-threading will pickup ~5 loans at a time)
-
-NPVEvaluation - Input Fields and SMDU version
-SMDUEvaluationData - Ouput Fields
-SMDURequestResponseLog - For everything
-
-Find out the expansion for SMDU 
-
-JP - Job Processor
